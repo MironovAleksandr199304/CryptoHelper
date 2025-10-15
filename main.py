@@ -38,12 +38,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rsi-period", type=int, default=14)
     parser.add_argument("--bollinger-period", type=int, default=20)
     parser.add_argument("--bollinger-std", type=float, default=2.0)
-    parser.add_argument(
-        "--candles-limit",
-        type=int,
-        default=None,
-        help="Override automatically computed candle history size",
-    )
     parser.add_argument("--telegram-token", default=os.getenv("TELEGRAM_TOKEN"))
     parser.add_argument("--telegram-chat", default=os.getenv("TELEGRAM_CHAT_ID"))
     return parser.parse_args()
@@ -63,7 +57,6 @@ def main() -> None:
         interval=args.interval,
         exchange=exchange,
         telegram_notifier=notifier,
-        candles_limit=args.candles_limit,
         ema_fast=args.ema_fast,
         ema_slow=args.ema_slow,
         rsi_period=args.rsi_period,

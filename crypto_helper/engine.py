@@ -5,8 +5,6 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Protocol
 
-from ._compat import requests
-
 from .exchanges.base import ExchangeClient, OHLCV
 from .indicators import core as indicators
 from .notifications.telegram import TelegramNotifier
@@ -26,7 +24,6 @@ class SignalConfig:
     interval: str
     exchange: ExchangeClient
     telegram_notifier: TelegramNotifier
-    candles_limit: int | None = None
     ema_fast: int = 50
     ema_slow: int = 200
     rsi_period: int = 14
@@ -39,44 +36,15 @@ class SignalEngine:
         self.formatter = formatter or self.default_formatter
 
     def run(self, config: SignalConfig) -> Dict[str, str]:
-        logger.info(
-            "Fetching OHLC data for %s on %s",
-            config.symbol,
-            config.exchange.__class__.__name__,
-        )
-        limit = config.candles_limit or self._required_candles(config)
-        candles = config.exchange.fetch_ohlc(config.symbol, config.interval, limit=limit)
-        if not candles:
-            logger.warning("Exchange %s returned no candles for %s", config.exchange, config.symbol)
-            return {"summary": "Нет данных по инструменту"}
+        logger.info("Fetching OHLC data for %s on %s", config.symbol, config.exchange.__class__.__name__)
+        candles = config.exchange.fetch_ohlc(config.symbol, config.interval)
         close_prices = [candle.close for candle in candles]
 
         signals = self.generate_signals(config, candles, close_prices)
         message = self.formatter(config.symbol, signals)
         logger.info("Sending Telegram notification: %s", message)
-        try:
-            delivered = config.telegram_notifier.send_message(message)
-        except requests.RequestException:
-            logger.exception("Failed to deliver Telegram notification")
-        else:
-            if not delivered:
-                logger.warning("Telegram API rejected the notification")
+        config.telegram_notifier.send_message(message)
         return signals
-
-    def _required_candles(self, config: SignalConfig) -> int:
-        """Calculate the number of candles required for configured indicators."""
-
-        ema_requirements = max(config.ema_fast, config.ema_slow)
-        rsi_requirement = config.rsi_period + 1  # RSI needs one extra data point
-        bollinger_requirement = config.bollinger_period
-        macd_slow_period = 26
-        macd_signal_period = 9
-        macd_requirement = macd_slow_period + macd_signal_period
-
-        required = max(ema_requirements, rsi_requirement, bollinger_requirement, macd_requirement)
-        # Fetch extra data to smooth indicators and avoid edge effects
-        buffer = max(required // 5, 20)
-        return required + buffer
 
     def generate_signals(self, config: SignalConfig, candles: List[OHLCV], close_prices: List[float]) -> Dict[str, str]:
         results: Dict[str, str] = {}
