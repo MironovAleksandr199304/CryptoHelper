@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Protocol
 
-from .._compat import requests
+import requests
 
 
 @dataclass
